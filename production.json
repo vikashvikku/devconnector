@@ -1,0 +1,8 @@
+{
+    "mongoURI": "mongodb+srv://parth123:parth123@mernstack.zlauu.mongodb.net/myFirstDatabase?retryWrites=true&w=majority",
+    "jwtSecret": "mysecrettoken",
+    "githubClientId": "979241915af78b226e56",
+    "githubClientSecret": "59096896819422e9bfc894aa70670490b624ceab",
+    "githubToken": "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"
+  }
+  
