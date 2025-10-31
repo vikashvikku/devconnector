@@ -10,13 +10,11 @@ const Profile = require('../../models/Profile');
 const User = require('../../models/User');
 const Post = require('../../models/Post');
 
-// @route GET api/profile/me
-// @desc Get current user's profile
-// @access Private
+// Get current user's profile
 router.get('/me', auth, async (req, res) => {
   try {
     const profile = await Profile.findOne({ user: req.user.id }).populate('user', ['name', 'avatar']);
-    if (!profile) return res.status(400).json({ msg: 'There is no profile for this user' });
+    if (!profile) return res.status(400).json({ msg: 'Profile not found' });
     res.json(profile);
   } catch (err) {
     console.error(err.message);
@@ -24,9 +22,7 @@ router.get('/me', auth, async (req, res) => {
   }
 });
 
-// @route POST api/profile
-// @desc Create or update user profile
-// @access Private
+// Create / Update profile
 router.post(
   '/',
   auth,
@@ -38,27 +34,19 @@ router.post(
 
     const { website, skills, youtube, twitter, instagram, linkedin, facebook, ...rest } = req.body;
 
-    // Build profile object
-    const profileFields = {
-      user: req.user.id,
-      website: website ? normalize(website, { forceHttps: true }) : '',
-      skills: [],
-      ...rest
-    };
+    const profileFields = { user: req.user.id, website: website ? normalize(website, { forceHttps: true }) : '', skills: [], ...rest };
 
-    // Safely parse skills
+    // Parse skills safely
     if (skills) {
-      if (Array.isArray(skills)) {
-        profileFields.skills = skills.map(skill => skill.trim());
-      } else if (typeof skills === 'string' && skills.length > 0) {
-        profileFields.skills = skills.split(',').map(skill => skill.trim());
-      }
+      profileFields.skills = Array.isArray(skills)
+        ? skills.map(skill => skill.trim())
+        : skills.split(',').map(skill => skill.trim());
     }
 
     // Social links
     const socialFields = { youtube, twitter, instagram, linkedin, facebook };
     for (const [key, value] of Object.entries(socialFields)) {
-      if (value) socialFields[key] = normalize(value, { forceHttps: true });
+      if (value && value.length > 0) socialFields[key] = normalize(value, { forceHttps: true });
     }
     profileFields.social = socialFields;
 
@@ -76,9 +64,7 @@ router.post(
   }
 );
 
-// @route GET api/profile
-// @desc Get all profiles
-// @access Public
+// Get all profiles
 router.get('/', async (req, res) => {
   try {
     const profiles = await Profile.find().populate('user', ['name', 'avatar']);
@@ -89,9 +75,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// @route GET api/profile/user/:user_id
-// @desc Get profile by user ID
-// @access Public
+// Get profile by user ID
 router.get('/user/:user_id', checkObjectId('user_id'), async ({ params: { user_id } }, res) => {
   try {
     const profile = await Profile.findOne({ user: user_id }).populate('user', ['name', 'avatar']);
@@ -103,9 +87,7 @@ router.get('/user/:user_id', checkObjectId('user_id'), async ({ params: { user_i
   }
 });
 
-// @route DELETE api/profile
-// @desc Delete profile, user & posts
-// @access Private
+// Delete profile, user, posts
 router.delete('/', auth, async (req, res) => {
   try {
     await Promise.all([
@@ -120,9 +102,7 @@ router.delete('/', auth, async (req, res) => {
   }
 });
 
-// @route PUT api/profile/experience
-// @desc Add profile experience
-// @access Private
+// Add experience
 router.put(
   '/experience',
   auth,
@@ -145,9 +125,7 @@ router.put(
   }
 );
 
-// @route DELETE api/profile/experience/:exp_id
-// @desc Delete experience from profile
-// @access Private
+// Delete experience
 router.delete('/experience/:exp_id', auth, async (req, res) => {
   try {
     const profile = await Profile.findOne({ user: req.user.id });
@@ -160,9 +138,7 @@ router.delete('/experience/:exp_id', auth, async (req, res) => {
   }
 });
 
-// @route PUT api/profile/education
-// @desc Add profile education
-// @access Private
+// Add education
 router.put(
   '/education',
   auth,
@@ -186,9 +162,7 @@ router.put(
   }
 );
 
-// @route DELETE api/profile/education/:edu_id
-// @desc Delete education from profile
-// @access Private
+// Delete education
 router.delete('/education/:edu_id', auth, async (req, res) => {
   try {
     const profile = await Profile.findOne({ user: req.user.id });
@@ -201,25 +175,18 @@ router.delete('/education/:edu_id', auth, async (req, res) => {
   }
 });
 
-// @route GET api/profile/github/:username
-// @desc Get user repos from GitHub
-// @access Public
+// Get GitHub repos
 router.get('/github/:username', async (req, res) => {
   try {
     const uri = encodeURI(
       `https://api.github.com/users/${req.params.username}/repos?per_page=5&sort=created:asc`
     );
-
-    const headers = { 'user-agent': 'node.js' };
-    if (process.env.GITHUB_TOKEN) {
-      headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
-    }
-
+    const headers = { 'user-agent': 'node.js', Authorization: `token ${process.env.GITHUB_TOKEN}` };
     const gitHubResponse = await axios.get(uri, { headers });
     res.json(gitHubResponse.data);
   } catch (err) {
     console.error(err.message);
-    res.status(404).json({ msg: 'No GitHub profile found' });
+    res.status(404).json({ msg: 'No Github profile found' });
   }
 });
 
