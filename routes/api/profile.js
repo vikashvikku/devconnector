@@ -16,8 +16,15 @@ const Post = require('../../models/Post');
 // @access   Private
 router.get('/me', auth, async (req, res) => {
   try {
-    const profile = await Profile.findOne({ user: req.user.id }).populate('user', ['name', 'avatar']);
-    if (!profile) return res.status(400).json({ msg: 'There is no profile for this user' });
+    const profile = await Profile.findOne({ user: req.user.id }).populate(
+      'user',
+      ['name', 'avatar']
+    );
+
+    if (!profile) {
+      return res.status(400).json({ msg: 'There is no profile for this user' });
+    }
+
     res.json(profile);
   } catch (err) {
     console.error(err.message);
@@ -48,22 +55,21 @@ router.post(
       ...rest
     } = req.body;
 
-    // Build profile fields
     const profileFields = {
       user: req.user.id,
       website: website ? normalize(website, { forceHttps: true }) : '',
-      skills: skills
-        ? Array.isArray(skills)
-          ? skills.map((skill) => skill.trim())
-          : skills.split(',').map((skill) => skill.trim())
-        : [],
+      skills: (() => {
+        if (!skills) return [];
+        if (Array.isArray(skills)) return skills.map(skill => skill.trim());
+        return skills.split(',').map(skill => skill.trim());
+      })(),
       ...rest
     };
 
-    // Build social fields
     const socialFields = { youtube, twitter, instagram, linkedin, facebook };
     for (const [key, value] of Object.entries(socialFields)) {
-      if (value && value.length > 0) socialFields[key] = normalize(value, { forceHttps: true });
+      if (value && value.length > 0)
+        socialFields[key] = normalize(value, { forceHttps: true });
     }
     profileFields.social = socialFields;
 
@@ -73,7 +79,7 @@ router.post(
         { $set: profileFields },
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
-      return res.json(profile);
+      res.json(profile);
     } catch (err) {
       console.error(err.message);
       res.status(500).send('Server Error');
@@ -101,10 +107,10 @@ router.get('/user/:user_id', checkObjectId('user_id'), async ({ params: { user_i
   try {
     const profile = await Profile.findOne({ user: user_id }).populate('user', ['name', 'avatar']);
     if (!profile) return res.status(400).json({ msg: 'Profile not found' });
-    return res.json(profile);
+    res.json(profile);
   } catch (err) {
     console.error(err.message);
-    return res.status(500).json({ msg: 'Server error' });
+    res.status(500).json({ msg: 'Server error' });
   }
 });
 
@@ -133,7 +139,7 @@ router.put(
   auth,
   check('title', 'Title is required').notEmpty(),
   check('company', 'Company is required').notEmpty(),
-  check('from', 'From date is required and needs to be from the past')
+  check('from', 'From date is required and must be in the past')
     .notEmpty()
     .custom((value, { req }) => (req.body.to ? value < req.body.to : true)),
   async (req, res) => {
@@ -153,17 +159,17 @@ router.put(
 );
 
 // @route    DELETE api/profile/experience/:exp_id
-// @desc     Delete experience from profile
+// @desc     Delete experience
 // @access   Private
 router.delete('/experience/:exp_id', auth, async (req, res) => {
   try {
     const profile = await Profile.findOne({ user: req.user.id });
-    profile.experience = profile.experience.filter((exp) => exp._id.toString() !== req.params.exp_id);
+    profile.experience = profile.experience.filter(exp => exp._id.toString() !== req.params.exp_id);
     await profile.save();
-    return res.status(200).json(profile);
+    res.status(200).json(profile);
   } catch (err) {
     console.error(err.message);
-    return res.status(500).json({ msg: 'Server error' });
+    res.status(500).json({ msg: 'Server error' });
   }
 });
 
@@ -176,7 +182,7 @@ router.put(
   check('school', 'School is required').notEmpty(),
   check('degree', 'Degree is required').notEmpty(),
   check('fieldofstudy', 'Field of study is required').notEmpty(),
-  check('from', 'From date is required and needs to be from the past')
+  check('from', 'From date is required and must be in the past')
     .notEmpty()
     .custom((value, { req }) => (req.body.to ? value < req.body.to : true)),
   async (req, res) => {
@@ -196,37 +202,35 @@ router.put(
 );
 
 // @route    DELETE api/profile/education/:edu_id
-// @desc     Delete education from profile
+// @desc     Delete education
 // @access   Private
 router.delete('/education/:edu_id', auth, async (req, res) => {
   try {
     const profile = await Profile.findOne({ user: req.user.id });
-    profile.education = profile.education.filter((edu) => edu._id.toString() !== req.params.edu_id);
+    profile.education = profile.education.filter(edu => edu._id.toString() !== req.params.edu_id);
     await profile.save();
-    return res.status(200).json(profile);
+    res.status(200).json(profile);
   } catch (err) {
     console.error(err.message);
-    return res.status(500).json({ msg: 'Server error' });
+    res.status(500).json({ msg: 'Server error' });
   }
 });
 
 // @route    GET api/profile/github/:username
-// @desc     Get user repos from Github
+// @desc     Get user repos from GitHub
 // @access   Public
 router.get('/github/:username', async (req, res) => {
   try {
-    const uri = encodeURI(
-      `https://api.github.com/users/${req.params.username}/repos?per_page=5&sort=created:asc`
-    );
+    const githubToken = config.has('githubToken') ? config.get('githubToken') : null;
+    const uri = encodeURI(`https://api.github.com/users/${req.params.username}/repos?per_page=5&sort=created:asc`);
     const headers = { 'user-agent': 'node.js' };
-    // Only use GitHub token if defined
-    if (config.has('githubToken')) headers.Authorization = `token ${config.get('githubToken')}`;
+    if (githubToken) headers.Authorization = `token ${githubToken}`;
 
     const gitHubResponse = await axios.get(uri, { headers });
-    return res.json(gitHubResponse.data);
+    res.json(gitHubResponse.data);
   } catch (err) {
     console.error(err.message);
-    return res.status(404).json({ msg: 'No Github profile found' });
+    res.status(404).json({ msg: 'No GitHub profile found' });
   }
 });
 
