@@ -16,9 +16,7 @@ const Post = require('../../models/Post');
 router.get('/me', auth, async (req, res) => {
   try {
     const profile = await Profile.findOne({ user: req.user.id }).populate('user', ['name', 'avatar']);
-    if (!profile) {
-      return res.status(400).json({ msg: 'There is no profile for this user' });
-    }
+    if (!profile) return res.status(400).json({ msg: 'There is no profile for this user' });
     res.json(profile);
   } catch (err) {
     console.error(err.message);
@@ -49,17 +47,19 @@ router.post(
       ...rest
     } = req.body;
 
+    // Build profile object
     const profileFields = {
       user: req.user.id,
-      website: website && website !== '' ? normalize(website, { forceHttps: true }) : '',
+      website: website ? normalize(website, { forceHttps: true }) : '',
       skills: Array.isArray(skills)
         ? skills
-        : skills
-          ? skills.split(',').map((skill) => skill.trim())
-          : [],
+        : skills && skills.length > 0
+        ? skills.split(',').map((skill) => skill.trim())
+        : [],
       ...rest
     };
 
+    // Build social object
     const socialFields = { youtube, twitter, instagram, linkedin, facebook };
     for (const [key, value] of Object.entries(socialFields)) {
       if (value && value.length > 0) socialFields[key] = normalize(value, { forceHttps: true });
@@ -72,10 +72,10 @@ router.post(
         { $set: profileFields },
         { new: true, upsert: true, setDefaultsOnInsert: true }
       );
-      res.json(profile);
+      return res.json(profile);
     } catch (err) {
       console.error(err.message);
-      res.status(500).send('Server Error');
+      return res.status(500).send('Server Error');
     }
   }
 );
@@ -132,9 +132,7 @@ router.put(
   auth,
   check('title', 'Title is required').notEmpty(),
   check('company', 'Company is required').notEmpty(),
-  check('from', 'From date is required and needs to be from the past')
-    .notEmpty()
-    .custom((value, { req }) => (req.body.to ? value < req.body.to : true)),
+  check('from', 'From date is required').notEmpty().custom((value, { req }) => (req.body.to ? value < req.body.to : true)),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
@@ -162,7 +160,7 @@ router.delete('/experience/:exp_id', auth, async (req, res) => {
     res.json(profile);
   } catch (err) {
     console.error(err.message);
-    res.status(500).json({ msg: 'Server error' });
+    res.status(500).send('Server Error');
   }
 });
 
@@ -175,9 +173,7 @@ router.put(
   check('school', 'School is required').notEmpty(),
   check('degree', 'Degree is required').notEmpty(),
   check('fieldofstudy', 'Field of study is required').notEmpty(),
-  check('from', 'From date is required and needs to be from the past')
-    .notEmpty()
-    .custom((value, { req }) => (req.body.to ? value < req.body.to : true)),
+  check('from', 'From date is required').notEmpty().custom((value, { req }) => (req.body.to ? value < req.body.to : true)),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
@@ -205,7 +201,7 @@ router.delete('/education/:edu_id', auth, async (req, res) => {
     res.json(profile);
   } catch (err) {
     console.error(err.message);
-    res.status(500).json({ msg: 'Server error' });
+    res.status(500).send('Server Error');
   }
 });
 
@@ -215,10 +211,8 @@ router.delete('/education/:edu_id', auth, async (req, res) => {
 router.get('/github/:username', async (req, res) => {
   try {
     const uri = encodeURI(`https://api.github.com/users/${req.params.username}/repos?per_page=5&sort=created:asc`);
-    const headers = {
-      'user-agent': 'node.js',
-      ...(process.env.GITHUB_TOKEN && { Authorization: `token ${process.env.GITHUB_TOKEN}` })
-    };
+    const headers = { 'user-agent': 'node.js' };
+    if (process.env.GITHUB_TOKEN) headers.Authorization = `token ${process.env.GITHUB_TOKEN}`;
     const gitHubResponse = await axios.get(uri, { headers });
     res.json(gitHubResponse.data);
   } catch (err) {
